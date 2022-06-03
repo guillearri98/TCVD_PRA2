@@ -108,6 +108,10 @@ dim(data)
 De esta manera ya no tenemos valores nulos en nuestros datos. El siguiente paso es ver si tenemos valores extremos. Para ello vamos a representar las variables numéricas:
 
 ```{r}
+if(!require(ggpubr)){
+    install.packages('ggpubr', repos='http://cran.us.r-project.org')
+    library(ggpubr)
+}
 if(!require(ggplot2)){
     install.packages('ggplot2', repos='http://cran.us.r-project.org')
     library(ggplot2)
@@ -122,6 +126,13 @@ ggplot(data,aes(Parch))+geom_boxplot()
 ```
 
 En el caso las variables "SibSp", "Parch" y "Age" tienen valores extremos pero no los eliminamos puesto que son valores reales que serán útiles para nuestro modelo.
+Lo que vamos a hacer es discretizar la variable edad para facilitar su uso:
+
+```{r}
+data["Age_d"] <- cut(data$Age, breaks = c(0,16,32,48,64,81), labels = c("0-15","16-31", "32-47", "48-63", "64-80"))
+```
+
+Esto nos ayudará con los análisis futuros.
 
 Una vez tenemos los datos limpios, los guardamos en un nuevo CSV:
 
@@ -131,10 +142,126 @@ write.csv(data, "titanic_clean.csv")
 
 ## Análisis de los datos
 
+Comenzamos realizando un análisis exploratorio de los datos. Esto nos ayudará a ver de forma gráfica nuestros datos y a sacar unas primeras conclusiones.
+
+```{r}
+if(!require(grid)){
+    install.packages('grid', repos='http://cran.us.r-project.org')
+    library(grid)
+}
+if(!require(gridExtra)){
+    install.packages('gridExtra', repos='http://cran.us.r-project.org')
+    library(gridExtra)
+}
+grid.newpage()
+
+plotClass<-ggplot(data,aes(Pclass))+geom_bar() +labs(x="Pclass", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("blue","#008000"))+ggtitle("Pclass")
+
+plotAge_d<-ggplot(data,aes(Age_d))+geom_bar() +labs(x="Age_d", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("blue","#008000"))+ggtitle("Age_d")
+
+plotSex<-ggplot(data,aes(Sex))+geom_bar() +labs(x="Sex", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("blue","#008000"))+ggtitle("Sex")
+
+plotSurvived<-ggplot(data,aes(Survived))+geom_bar() +labs(x="Survived", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("blue","#008000"))+ggtitle("SURVIVED")
+
+plotSibSp<-ggplot(data,aes(SibSp))+geom_bar() +labs(x="SuibSp", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("blue","#008000"))+ggtitle("SibSp")
+
+plotParch<-ggplot(data,aes(Parch))+geom_bar() +labs(x="Parch", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("blue","#008000"))+ggtitle("Parch")
+
+plotEmbarked<-ggplot(data,aes(Embarked))+geom_bar() +labs(x="Embarked", y="Passengers")+ guides(fill=guide_legend(title=""))+ scale_fill_manual(values=c("blue","#008000"))+ggtitle("Embarked")
+
+grid.arrange(plotClass,plotAge_d,plotSex,plotSurvived,plotSibSp,plotParch,plotEmbarked,ncol=3)
+```
+
+Así a simpple vista podemos observar que la mayoría de los pasajeros se concentra entre los 16 y los 32 años. También podemos deducir que la mayoría son de tercera clase, y que hay más población de hombres que de mujeres.
+
+El siguiente paso va a ser estudiar la relación de las variables con la variable que se va a predecir, el este caso "Survived". Para ello será necesario transformar las variables a factores. Además vamos a prescindir de la variable Parch y SibSp ya que la gran mayoría de sus casos se concentran en 0:
 
 
+```{r}
+data$Survived <- factor(data$Survived, levels=c("0","1"))
+grid.newpage()
+
+plotClass<-ggplot(data,aes(Pclass, fill=Survived))+geom_bar() +labs(x="Pclass", y="Survived")+ggtitle("Pclass / S")
+
+plotAge_d<-ggplot(data,aes(Age_d, fill=Survived))+geom_bar() +labs(x="Age_d", y="Survived")+ggtitle("Age_d / S")+scale_x_discrete(labels = abbreviate)
+
+plotSex<-ggplot(data,aes(Sex, fill=Survived))+geom_bar() +labs(x="Sex", y="Survived")+ggtitle("Sex / S")
+
+plotEmbarked<-ggplot(data,aes(Embarked, fill=Survived))+geom_bar() +labs(x="Embarked", y="Survived")+ggtitle("Embarked / S")
+
+grid.arrange(plotClass,plotAge_d,plotSex,plotEmbarked,ncol=2)
+```
+
+Podemos observar como la mayoría de muertos se concentran en la tercera clase, esto posiblemente por su condición, ya que es probable que a la hora de evacuar, tuvieran preferencia los de las clases más altas. Además podemos observar como la gran mayoría de muertos se concentra en los hombres, con mucho más del 50%.
+
+A continuación vamos a realizar unos test de significacia para ver cuales de los atributos tienen mayor influencia con la variable a predecir. Esto nos ayudará a aumentar la precisión en la predicción y a reducir el sobreentrenamiento al contar con menos datos engañosos. Los escogidos van a se el cálculo de la V de Cramér y el coeficiente de Phi: 
 
 
+```{r}
+if(!require(DescTools)){
+    install.packages('DescTools', repos='http://cran.us.r-project.org')
+    library(DescTools)
+}
+
+tabla_CS <- table(data$Pclass,data$Survived)
+CramerV(tabla_CS)
+Phi(tabla_CS)
+
+tabla_AS <- table(data$Age_d,data$Survived)
+CramerV(tabla_AS)
+Phi(tabla_AS)
+
+tabla_SS <- table(data$Sex,data$Survived)
+CramerV(tabla_SS)
+Phi(tabla_SS)
+
+tabla_ES <- table(data$Embarked,data$Survived)
+CramerV(tabla_ES)
+Phi(tabla_ES)
+
+tabla_SiS <- table(data$SibSp,data$Survived)
+CramerV(tabla_SiS)
+Phi(tabla_SiS)
+
+tabla_PS <- table(data$Parch,data$Survived)
+CramerV(tabla_PS)
+Phi(tabla_PS)
+
+
+```
+
+En este caso como no tenemos ningún valor inferior a 0.1, vamos a conservar todas las variables que tenemos en este dataset.
+
+## Comprobación de la normalidad y homogeneidad de la varianza
+
+Para comprobar si nuestras variables siguen una distribución normal, vamos a realizar la prueba de Anderson-Darling. Con esta prueba se obtiene un p-valor. Si este es superior al valor alfa prefijado, se considera que la variable sigue una distribución normal:
+
+```{r}
+if(!require(nortest)){
+    install.packages('nortest', repos='http://cran.us.r-project.org')
+    library(nortest)
+}
+alpha = 0.05
+col.names = colnames(data)
+for (i in 1:ncol(data)) {
+if (i == 1) cat("Variables que no siguen una distribución normal:\n")
+if (is.integer(data[,i]) | is.numeric(data[,i])) {
+p_val = ad.test(data[,i])$p.value
+if (p_val < alpha) {
+cat(col.names[i])
+# Format output
+if (i < ncol(data) - 1) cat(", ")
+if (i %% 3 == 0) cat("\n")
+}
+}
+}
+
+
+```
+
+En este caso ninguna de nuestras variables sigue una distribución normal.
+
+ 
 
 
 
