@@ -261,9 +261,67 @@ if (i %% 3 == 0) cat("\n")
 
 En este caso ninguna de nuestras variables sigue una distribución normal.
 
- 
+En cuanto a la homogeneidad de la varianza, utilizaremos el test de Fligner-Killeen, que se trata de la alternativa no paramétrica del test de Leneve, utilizada cuando los datos no cumplen con la condición de normalidad:
+
+```{r}
+fligner.test(Pclass ~ Survived, data = data)
+fligner.test(SibSp ~ Survived, data = data)
+fligner.test(Parch ~ Survived, data = data)
+```
+
+Para aquellas variables en que el test es aplicable, hemos de tener en cuenta que aquellas que tienen un p-valor inferior al nivel de signficancia (< 0.05) se debe rechazar la hipótesis nula de homocesticidad, de modo que tanto "Pclass" como "Parch" presentan varianzas estadísticamente diferentes para distintos grupos de "Survived". Por contra, en el caso de "SibSp" sí presenta varianzas estadísticamenes similares para diferentes grupos de "Survived".
 
 
+## Aplicación de pruebas estadísticas para comparar los grupos de datos
+
+En primer lugar, aplicamos regresión lineal, un modelo matemático que tiene como objetivo aproximar la relación de dependencia lineal entre una variable dependiente y una serie de variables independientes.
+
+```{r}
+m1 = lm(Pclass ~ Survived, data = data)
+summary(m1)
+```
+
+```{r}
+m2 = lm(SibSp ~ Survived, data = data)
+summary(m2)
+```
+
+```{r}
+m3 = lm(Parch ~ Survived, data = data)
+summary(m3)
+```
+
+Siendo el coeficiente de determinación (R-squared) una medida de calidad del modelo, que toma valores entre 0 y 1. Si este valor es alto, indica una fuerte correlación entre ambas variables, que no se da en ninguno de los casos presentados aquí.
+
+Otro método es el coeficiente de correlación, que mide la asociación entre dos variables. Puede tomar valores entre -1 y 1, donde los extremos indican una correlación perfecta, y el 0 indica ausencia de correlación. El signo es negativo cuando los valores elevados de una variable se asocian con valores pequeños de la otra, y es positivo cuando ambas variables tienden a incrementar o disminuir simultáneamente. El coeficiente de correlación más utilizado es el de Pearson, pero requiere que la distribución de las dos variables comparadas sea normal, y además que se cumpla el criterio de homocedasticidad. Por tanto, en nuestro caso tenemos que optar por la correlación de Spearman, que aparece como alternativa no paramétrica que mide el grado de dependencia entre dos variables. En este caso, lo aplicamos entre las variables numéricas de nuestro estudio:
+
+```{r}
+cor.test(data$Pclass, data$Parch, method = "spearman")
+```
+
+```{r}
+cor.test(data$Pclass, data$SibSp, method = "spearman")
+```
+
+```{r}
+cor.test(data$Parch, data$SibSp, method = "spearman")
+```
+
+Siendo la correlación más elevada entre las variables "Parch" y "SibSp", y nula en resto de comparaciones.
+
+Por último, podemos proceder a la generación de un árbol de decisión, que nos permita extraer conclusiones que nos permitan inferir cuales son las características base de los pasajeros en relación con su índice de supervivencia. Veámoslo:
+
+```{r}
+if(!require(rpart.plot)){
+    install.packages('rpart.plot', repos='http://cran.us.r-project.org')
+    library(rpart.plot)
+}
 
 
+tree <- rpart(Survived ~ Pclass + Sex + Age + SibSp + Parch + Embarked, data=data, method="class")
+plot(tree)
+text(tree, cex=1)
+rpart.plot(tree)
+```
 
+Lo cual ya nos ofrece un resultado mucho más interesante para inferir la supervivencia a partir de ciertos atributos de los pasajeros.
